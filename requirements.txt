@@ -1,0 +1,7 @@
+numpy
+faiss-cpu
+sentence-transformers
+langchain
+pypdf2
+python-docx
+httpx
