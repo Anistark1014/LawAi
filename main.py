@@ -1,120 +1,159 @@
-import os
-import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-import pickle
-from PyPDF2 import PdfReader
-import docx
+# d:\Justicebot\main.py
 
-# --- Helper functions to extract text from files ---
+import asyncio
+import random
+from flask import Flask, request, jsonify, render_template_string
 
-def get_text_from_pdf(file_path):
-    """Extracts text from a PDF file."""
-    text = ""
-    try:
-        with open(file_path, 'rb') as f:
-            reader = PdfReader(f)
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-    except Exception as e:
-        print(f"Error reading PDF {file_path}: {e}")
-    return text
+# --- App Initialization ---
+app = Flask(__name__)
 
-def get_text_from_docx(file_path):
-    """Extracts text from a DOCX file."""
-    text = ""
-    try:
-        doc = docx.Document(file_path)
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-    except Exception as e:
-        print(f"Error reading DOCX {file_path}: {e}")
-    return text
+# --- HTML & JavaScript Frontend Template ---
+# This string contains a complete webpage that will be sent to the browser.
+# It includes a chat interface and the JavaScript to communicate with our Flask backend.
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JusticeBot Interface</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #chat-container { width: 90%; max-width: 600px; height: 80vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        #chat-box { flex-grow: 1; padding: 20px; overflow-y: auto; border-bottom: 1px solid #eee; }
+        .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; max-width: 80%; line-height: 1.5; }
+        .user-message { background-color: #007bff; color: white; align-self: flex-end; margin-left: auto; }
+        .bot-message { background-color: #e9ecef; color: #333; align-self: flex-start; }
+        .typing-indicator { color: #888; font-style: italic; }
+        #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; }
+        #user-input { flex-grow: 1; border: 1px solid #ddd; border-radius: 20px; padding: 10px 15px; font-size: 16px; outline: none; }
+        #send-button { background-color: #007bff; color: white; border: none; padding: 10px 20px; margin-left: 10px; border-radius: 20px; cursor: pointer; font-size: 16px; }
+        #send-button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-box">
+             <div class="message bot-message">Hello! How can I assist you with legal information today?</div>
+        </div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
 
-def build_vector_database():
-    """
-    Loads documents, creates embeddings, and saves the FAISS index and chunks.
-    """
-    print("Loading multilingual embedding model...")
-    model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
-    print("Model loaded.")
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
 
-    # --- Enhanced Knowledge Base with Specific Legal Details ---
-    # IMPORTANT: This is still example data. Replace with your real judgment files.
-    documents = [
-        {
-            "source": "Cyber_Fraud_IPC.txt",
-            "content": """
-            Online Financial Fraud: When an individual is deceived into transferring money through digital means under false pretenses, it constitutes online cheating.
-            This is primarily covered under Section 420 of the Indian Penal Code (IPC), which deals with 'Cheating and dishonestly inducing delivery of property'.
-            Consequences: The punishment for an offense under Section 420 IPC can be imprisonment for a term which may extend to seven years, and shall also be liable to a fine.
-            The IT Act 2000 complements this through Section 66D, which pertains to cheating by personation using a computer resource, punishable by imprisonment up to three years and a fine up to one lakh rupees.
-            """
-        },
-        {
-            "source": "Identity_Theft_IT_Act.txt",
-            "content": """
-            Identity Theft and Impersonation: The act of fraudulently using someone else's electronic signature, password, or other unique identification feature is defined as identity theft.
-            This is specifically addressed by Section 66C of the Information Technology Act, 2000.
-            Punishment: A person found guilty under Section 66C shall be punished with imprisonment of either description for a term which may extend to three years and shall also be liable to a fine which may extend to rupees one lakh.
-            This can often be linked with Section 419 of the IPC for 'Punishment for cheating by personation'.
-            """
-        },
-        {
-            "source": "Data_Theft_Hacking.txt",
-            "content": """
-            Hacking and Data Theft: Unauthorized access to a computer, computer system, or network, and subsequently downloading, copying, or extracting data without permission is a serious offense.
-            Section 66 of the IT Act, 2000, is the primary provision for such computer-related offenses. If any person dishonestly or fraudulently commits the act referred to in Section 43, they shall be punishable with imprisonment for a term which may extend to three years or with a fine which may extend to five lakh rupees or with both.
-            This is often tried alongside Section 379 of the IPC for theft.
-            """
+        async function sendMessage() {
+            const messageText = userInput.value.trim();
+            if (messageText === '') return;
+
+            // Display user message
+            addMessage(messageText, 'user-message');
+            userInput.value = '';
+
+            // Display typing indicator
+            const typingDiv = addMessage('Bot is typing...', 'bot-message typing-indicator');
+            
+            try {
+                // Send message to backend
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: messageText })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Remove typing indicator and display bot response
+                chatBox.removeChild(typingDiv);
+                addMessage(data.reply, 'bot-message');
+
+            } catch (error) {
+                chatBox.removeChild(typingDiv);
+                addMessage('Sorry, an error occurred. Please try again.', 'bot-message');
+                console.error('Fetch error:', error);
+            }
         }
+
+        function addMessage(text, className) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', className);
+            messageDiv.textContent = text;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+            return messageDiv;
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+# --- Backend Logic ---
+
+@app.route('/')
+def home():
+    """Serves the main chat page."""
+    return render_template_string(HTML_TEMPLATE)
+
+async def get_bot_response(message: str) -> str:
+    """
+    A placeholder function to simulate getting a response from an AI.
+    It waits for a short, random duration to feel more realistic.
+    """
+    print(f"Received message: '{message}'. Processing asynchronously...")
+    delay = random.uniform(0.5, 2.0)  # Simulate network/model latency
+    await asyncio.sleep(delay)
+    
+    # Example canned responses
+    responses = [
+        f"Regarding '{message}', the standard procedure involves...",
+        f"Thank you for asking about '{message}'. Here is some general information...",
+        f"I have processed your query about '{message}'. The legal precedent suggests...",
+        "That is an interesting question. Could you provide more specific details?",
     ]
+    response = random.choice(responses)
+    
+    print("Processing complete. Sending reply.")
+    return response
 
-    document_folder = 'judgments'
-    print(f"Loading documents from the '{document_folder}' folder and using internal examples...")
-    if os.path.exists(document_folder):
-        for filename in os.listdir(document_folder):
-            file_path = os.path.join(document_folder, filename)
-            content = ""
-            if filename.lower().endswith('.pdf'): content = get_text_from_pdf(file_path)
-            elif filename.lower().endswith('.docx'): content = get_text_from_docx(file_path)
-            elif filename.lower().endswith('.txt'):
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f: content = f.read()
-            if content: documents.append({"source": filename, "content": content})
+@app.route('/chat', methods=['POST'])
+async def chat():
+    """
+    This is the asynchronous API endpoint for the chatbot.
+    It receives a message and returns a simulated AI response.
+    """
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
 
-    print(f"Total documents to process: {len(documents)}")
-    if not documents:
-        print("No documents found. Please add files to the 'judgments' folder or check the internal list.")
-        return
+    data = request.get_json()
+    user_message = data.get('message')
 
-    print("Splitting documents into chunks...")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    all_chunks = []
-    for doc in documents:
-        chunks = text_splitter.split_text(doc['content'])
-        for chunk in chunks:
-            all_chunks.append({"source": doc['source'], "content": chunk})
-    print(f"Created {len(all_chunks)} chunks.")
+    if not user_message:
+        return jsonify({"error": "Missing 'message' key in JSON body"}), 400
 
-    print("Generating embeddings for all chunks...")
-    chunk_contents = [chunk['content'] for chunk in all_chunks]
-    embeddings = model.encode(chunk_contents, convert_to_tensor=False, show_progress_bar=True)
-    print("Embeddings generated.")
+    # Get the response from our async function
+    bot_reply = await get_bot_response(user_message)
 
-    print("Building FAISS index...")
-    d = embeddings.shape[1]
-    index = faiss.IndexFlatL2(d)
-    index.add(np.array(embeddings))
-    print(f"FAISS index built with {index.ntotal} vectors.")
+    return jsonify({"reply": bot_reply})
 
-    print("Saving FAISS index and chunks...")
-    faiss.write_index(index, "cyber_law_index.bin")
-    with open("cyber_law_chunks.pkl", "wb") as f:
-        pickle.dump(all_chunks, f)
-    print("Vector database built and saved successfully!")
+# --- Main Execution ---
 
-if __name__ == "__main__":
-    build_vector_database()
+if __name__ == '__main__':
+    # The debug=True flag enables the interactive debugger and auto-reloading.
+    # The host='0.0.0.0' makes the server accessible on your local network.
+    app.run(host='0.0.0.0', port=5000, debug=True)
