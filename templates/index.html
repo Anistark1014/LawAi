@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Justice Bot</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #chat-container { width: 90%; max-width: 800px; height: 80vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
+        #chat-box { flex-grow: 1; padding: 20px; overflow-y: auto; border-bottom: 1px solid #eee; }
+        .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; max-width: 80%; line-height: 1.5; }
+        .user-message { background-color: #007bff; color: white; align-self: flex-end; margin-left: auto; }
+        .bot-message { background-color: #e9ecef; color: #333; align-self: flex-start; }
+        .typing-indicator { color: #888; font-style: italic; }
+        #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; }
+        #user-input { flex-grow: 1; border: 1px solid #ddd; border-radius: 20px; padding: 10px 15px; font-size: 16px; outline: none; }
+        #send-button { background-color: #007bff; color: white; border: none; padding: 10px 20px; margin-left: 10px; border-radius: 20px; cursor: pointer; font-size: 16px; }
+        #send-button:hover { background-color: #0056b3; }
+        header { padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px; }
+        header h1 { margin: 0; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <header>
+            <h1>AI Justice Bot</h1>
+            <small>Multilingual legal assistant (RAG + LLM)</small>
+        </header>
+
+        <div id="chat-box">
+            <div class="message bot-message">Hello! Describe your situation briefly and I'll try to help.</div>
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" />
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+
+        function addMessage(text, className) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', className);
+            messageDiv.textContent = text;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageDiv;
+        }
+
+        async function sendMessage() {
+            const messageText = userInput.value.trim();
+            if (messageText === '') return;
+
+            addMessage(messageText, 'user-message');
+            userInput.value = '';
+
+            const typingDiv = addMessage('Bot is typing...', 'bot-message typing-indicator');
+
+            try {
+                const resp = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: messageText })
+                });
+
+                if (!resp.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await resp.json();
+                // app.py returns { response: assistant_response }
+                const reply = data.response || data.reply || 'No response received.';
+
+                chatBox.removeChild(typingDiv);
+                addMessage(reply, 'bot-message');
+
+            } catch (err) {
+                if (typingDiv && typingDiv.parentNode) chatBox.removeChild(typingDiv);
+                addMessage('Sorry, an error occurred. Please try again later.', 'bot-message');
+                console.error(err);
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

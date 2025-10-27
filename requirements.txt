@@ -5,3 +5,11 @@ langchain
 pypdf2
 python-docx
 httpx
+flask
+flask-cors
+python-dotenv
+torch
+transformers
+datasets
+scikit-learn
+pandas

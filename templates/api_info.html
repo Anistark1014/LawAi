@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Justice Bot API</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f8f9fa; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .endpoint { background: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .method { background: #27ae60; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+        .method.get { background: #3498db; }
+        code { background: #ecf0f1; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ AI Justice Bot API</h1>
+        <p>Standalone legal guidance API for Indian cyber crime law. No external dependencies required.</p>
+        
+        <h2>API Endpoints</h2>
+        
+        <div class="endpoint">
+            <span class="method">POST</span> <code>/api/legal-advice</code>
+            <p><strong>Main endpoint for React frontend.</strong> Send user queries and get structured legal guidance.</p>
+            <p><strong>Request:</strong> <code>{"message": "my account was hacked", "history": [], "language": "English"}</code></p>
+            <p><strong>Response:</strong> <code>{"type": "GUIDE", "response": "...", "crime_type": "...", "sections": [...]}</code></p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/health</code>
+            <p>Health check endpoint.</p>
+            <p><strong>Response:</strong> <code>{"status": "healthy", "service": "AI Justice Bot API"}</code></p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/crimes</code>
+            <p>List available crime types and keywords.</p>
+            <p><strong>Response:</strong> <code>{"crimes": [{"id": "hacking", "name": "Unauthorized Access", "keywords": [...]}]}</code></p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method">POST</span> <code>/chat</code>
+            <p>Legacy endpoint for backward compatibility.</p>
+            <p><strong>Request:</strong> <code>{"message": "user query"}</code></p>
+            <p><strong>Response:</strong> <code>{"response": "guidance text"}</code></p>
+        </div>
+        
+        <h2>Supported Crime Types</h2>
+        <ul>
+            <li><strong>Online Financial Fraud</strong> - IT Act Section 66D, IPC Section 420</li>
+            <li><strong>Identity Theft</strong> - IT Act Section 66C, IPC Section 419</li>
+            <li><strong>Unauthorized Access/Hacking</strong> - IT Act Section 66, Section 43</li>
+            <li><strong>Cyberbullying/Harassment</strong> - IT Act Section 67, IPC Section 507</li>
+            <li><strong>Data Theft</strong> - IT Act Section 72, Section 43A</li>
+        </ul>
+        
+        <h2>Usage from React</h2>
+        <pre><code>const response = await fetch('/api/legal-advice', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    message: "Someone hacked my email account",
+    history: [],
+    language: "English"
+  })
+});
+
+const data = await response.json();
+console.log(data.response); // Structured legal guidance</code></pre>
+    </div>
+</body>
+</html>

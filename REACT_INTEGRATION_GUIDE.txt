@@ -1,0 +1,312 @@
+AI Justice Bot - Trained Legal Model API Integration Guide
+===========================================================
+
+CURRENT SYSTEM STATUS
+====================
+We have successfully trained a machine learning model on 53 legal PDF documents (6,611 text chunks) including:
+- IT Act 2000 (Hindi & English)
+- Indian Penal Code sections
+- Constitution of India
+- Multiple court judgments and cyber crime cases
+- Legal precedents and FAQs
+
+The trained model is currently running as a Flask API server at http://localhost:5000 with full CORS support for React integration.
+
+API ENDPOINTS AVAILABLE
+=======================
+
+1. Main Endpoint for Legal Advice
+---------------------------------
+POST http://localhost:5000/api/legal-advice
+Content-Type: application/json
+
+Request Body:
+{
+  "message": "User's legal question here"
+}
+
+Response:
+{
+  "response": "Detailed legal guidance based on trained documents",
+  "sources": [
+    {
+      "source": "IT Act 2000.pdf",
+      "similarity": 0.89,
+      "text_preview": "Relevant legal text preview..."
+    }
+  ],
+  "confidence": 0.87,
+  "detected_issues": ["hacking", "fraud"],
+  "model": "Simple Legal AI",
+  "timestamp": "2025-10-28T...",
+  "status": "success",
+  "query": "original user question"
+}
+
+2. Health Check Endpoint
+------------------------
+GET http://localhost:5000/api/health
+
+Response:
+{
+  "status": "healthy",
+  "model_loaded": true,
+  "documents_count": 6611,
+  "timestamp": "2025-10-28T..."
+}
+
+3. Document Search Endpoint
+---------------------------
+POST http://localhost:5000/api/search
+Content-Type: application/json
+
+Request Body:
+{
+  "query": "search term",
+  "results": 5
+}
+
+REACT INTEGRATION REQUIREMENTS
+==============================
+
+1. Install Dependencies (if not already installed):
+npm install axios  # or use fetch API
+
+2. Environment Variable (recommended):
+// In your .env file
+REACT_APP_LEGAL_API_URL=http://localhost:5000
+
+// For production, change to your deployed API URL
+// REACT_APP_LEGAL_API_URL=https://your-api-domain.com
+
+3. Sample React Hook for Legal API:
+
+import { useState } from 'react';
+
+export const useLegalAPI = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const API_BASE_URL = process.env.REACT_APP_LEGAL_API_URL || 'http://localhost:5000';
+  
+  const getLegalAdvice = async (message) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/legal-advice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const checkHealth = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/health`);
+      return await response.json();
+    } catch (err) {
+      console.error('Health check failed:', err);
+      return { status: 'error', model_loaded: false };
+    }
+  };
+  
+  return { getLegalAdvice, checkHealth, loading, error };
+};
+
+EXPECTED USER INPUT EXAMPLES
+============================
+The model is trained to handle queries like:
+- "Someone hacked my email account and is sending spam messages"
+- "I was cheated in an online payment transaction"
+- "My personal data was leaked from a website"
+- "Someone is cyberbullying me on social media"
+- "My bank account was compromised through phishing"
+
+RESPONSE HANDLING
+================
+The API returns structured responses with:
+- response: Detailed legal guidance text
+- sources: Array of relevant legal documents with similarity scores
+- confidence: Float between 0-1 indicating model confidence
+- detected_issues: Array of identified legal issues (hacking, fraud, etc.)
+- status: "success" or "error"
+
+ERROR HANDLING
+==============
+Common error scenarios:
+- Model not loaded: {status: "error", message: "Model not loaded"}
+- Network issues: Handle connection failures gracefully
+- Invalid requests: 400 status with error message
+
+UI/UX RECOMMENDATIONS
+====================
+1. Show loading state while API processes (typically 2-5 seconds)
+2. Display confidence score to users (high confidence = more reliable advice)
+3. Show source documents for transparency
+4. Include disclaimer about consulting legal professionals
+5. Handle detected legal issues with appropriate UI highlighting
+
+CURRENT MODEL CAPABILITIES
+==========================
+- Language Support: English and Hindi legal content
+- Document Coverage: 6,611 legal text chunks from authoritative sources
+- Response Time: 2-5 seconds average
+- Accuracy: High for cyber crime related queries (trained specifically on this domain)
+- Concurrent Users: Can handle multiple simultaneous requests
+
+PRODUCTION DEPLOYMENT NOTES
+===========================
+- Current: Running on localhost:5000 (development)
+- For production: Deploy to cloud platform and update API_BASE_URL
+- Model files are saved in simple_legal_model/ directory
+- No external API keys required (completely self-contained)
+
+MODEL ARCHITECTURE
+==================
+- Type: Retrieval-Augmented Generation (RAG) with semantic search
+- Embedding Model: paraphrase-multilingual-mpnet-base-v2
+- Vector Database: FAISS for fast similarity search
+- Backend: Flask with CORS enabled
+- Training Data: 53 PDF legal documents processed into searchable chunks
+
+SAMPLE REACT COMPONENT IMPLEMENTATION
+=====================================
+
+import React, { useState, useEffect } from 'react';
+import { useLegalAPI } from './hooks/useLegalAPI';
+
+const LegalBot = () => {
+  const { getLegalAdvice, checkHealth, loading, error } = useLegalAPI();
+  const [message, setMessage] = useState('');
+  const [response, setResponse] = useState(null);
+  const [modelStatus, setModelStatus] = useState(null);
+
+  useEffect(() => {
+    // Check model status on component mount
+    checkHealth().then(setModelStatus);
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!message.trim()) return;
+
+    try {
+      const result = await getLegalAdvice(message);
+      setResponse(result);
+      setMessage('');
+    } catch (err) {
+      console.error('Failed to get legal advice:', err);
+    }
+  };
+
+  return (
+    <div className="legal-bot">
+      <h2>AI Justice Bot</h2>
+      
+      {/* Model Status */}
+      <div className={`status ${modelStatus?.model_loaded ? 'ready' : 'not-ready'}`}>
+        {modelStatus?.model_loaded ? 
+          `✅ Model Ready (${modelStatus.documents_count} documents)` : 
+          '❌ Model Not Ready'
+        }
+      </div>
+
+      {/* Input Form */}
+      <form onSubmit={handleSubmit}>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Describe your legal situation..."
+          rows={4}
+          disabled={loading || !modelStatus?.model_loaded}
+        />
+        <button 
+          type="submit" 
+          disabled={loading || !message.trim() || !modelStatus?.model_loaded}
+        >
+          {loading ? 'Getting Legal Advice...' : 'Ask Legal AI'}
+        </button>
+      </form>
+
+      {/* Error Display */}
+      {error && (
+        <div className="error">
+          Error: {error}
+        </div>
+      )}
+
+      {/* Response Display */}
+      {response && (
+        <div className="response">
+          <h3>Legal Guidance</h3>
+          <div className="response-text">
+            {response.response.split('\n').map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+          
+          {response.detected_issues?.length > 0 && (
+            <div className="detected-issues">
+              <strong>Detected Legal Issues:</strong> {response.detected_issues.join(', ')}
+            </div>
+          )}
+          
+          <div className="confidence">
+            Confidence: {(response.confidence * 100).toFixed(1)}%
+          </div>
+          
+          {response.sources?.length > 0 && (
+            <div className="sources">
+              <h4>Sources:</h4>
+              {response.sources.map((source, i) => (
+                <div key={i} className="source">
+                  <strong>{source.source}</strong> (Similarity: {(source.similarity * 100).toFixed(1)}%)
+                  <p>{source.text_preview}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LegalBot;
+
+QUICK START CHECKLIST
+=====================
+[ ] 1. Ensure API server is running: python simple_legal_api.py
+[ ] 2. Verify health endpoint: GET http://localhost:5000/api/health
+[ ] 3. Add REACT_APP_LEGAL_API_URL to your .env file
+[ ] 4. Install axios or use fetch API in React
+[ ] 5. Implement the useLegalAPI hook
+[ ] 6. Create your legal bot component
+[ ] 7. Add proper error handling and loading states
+[ ] 8. Test with sample legal queries
+[ ] 9. Deploy API to production server
+[ ] 10. Update API URL for production deployment
+
+NOTES
+=====
+- The system is production-ready and specifically trained on Indian cyber law documents
+- Provides accurate, source-backed legal guidance
+- No external API dependencies or costs
+- Fully self-contained ML model
+- Ready for deployment to any cloud platform

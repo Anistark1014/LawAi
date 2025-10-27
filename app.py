@@ -28,6 +28,11 @@ except FileNotFoundError:
     print("Please run 'python main.py' first to build the database before starting the web server.")
     exit()
 
+# Optional: If you host your own AM model endpoint (e.g., an API that wraps this AM model),
+# set EXTERNAL_MODEL_URL in your .env to forward requests there. It should accept JSON {message, history, language}
+# and return JSON {response: "..."}.
+EXTERNAL_MODEL_URL = os.getenv("EXTERNAL_MODEL_URL")
+
 # --- 3. Core RAG and LLM Functions ---
 def retrieve_from_rag(query, k=10):
     """Searches the vector database and returns the top k most relevant text chunks."""
@@ -84,6 +89,25 @@ async def get_gemini_response(conversation_history, context_chunks, language="En
         except Exception as e:
             return f"An unexpected error occurred: {str(e)}"
 
+
+    async def forward_to_external_model(user_message, conversation_history, language="English"):
+        """Forward the user's message to an external model endpoint if configured."""
+        if not EXTERNAL_MODEL_URL:
+            return None
+
+        payload = {"message": user_message, "history": conversation_history, "language": language}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                resp = await client.post(EXTERNAL_MODEL_URL, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                # Accept either 'response' or 'reply' keys
+                return data.get('response') or data.get('reply')
+            except Exception as e:
+                # Return None so caller can fall back to Gemini
+                print(f"Warning: forwarding to external model failed: {e}")
+                return None
+
 # --- 4. Flask Routes (API Endpoints) ---
 
 @app.route("/")
@@ -106,7 +130,14 @@ async def chat():
         return jsonify({"error": "No message provided"}), 400
 
     retrieved_chunks = retrieve_from_rag(user_message)
-    assistant_response = await get_gemini_response(conversation_history, retrieved_chunks, language)
+    # If an external AM model URL is provided, forward the request there first.
+    assistant_response = None
+    if EXTERNAL_MODEL_URL:
+        assistant_response = await forward_to_external_model(user_message, conversation_history, language)
+
+    # Fall back to Gemini if external model not configured or failed
+    if not assistant_response:
+        assistant_response = await get_gemini_response(conversation_history, retrieved_chunks, language)
     
     return jsonify({"response": assistant_response})
 

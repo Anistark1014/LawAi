@@ -1,0 +1,6 @@
+{
+  "model_type": "Simple Legal AI",
+  "num_documents": 6611,
+  "embedding_dimension": 768,
+  "sentence_model": "paraphrase-multilingual-mpnet-base-v2"
+}
