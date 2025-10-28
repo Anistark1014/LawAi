@@ -1,0 +1,1 @@
+web: gunicorn lightweight_api:app
