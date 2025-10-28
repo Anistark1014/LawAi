@@ -1,0 +1,228 @@
+{
+  "metadata": {
+    "created": "2025-10-28T05:39:43.908467",
+    "description": "Expanded Legal AI Training Data",
+    "version": "2.0",
+    "total_scenarios": 10
+  },
+  "training_scenarios": [
+    {
+      "user_query": "I witnessed a murder last night near my apartment",
+      "legal_context": "Murder under IPC Section 302",
+      "situation_analysis": {
+        "crime_type": "murder",
+        "urgency": "critical",
+        "evidence_available": true,
+        "witness_role": "eyewitness"
+      },
+      "expected_response_type": "critical_emergency",
+      "legal_sections": [
+        "IPC 302",
+        "IPC 161",
+        "Evidence Act"
+      ],
+      "priority_actions": [
+        "call_police_immediately",
+        "preserve_scene",
+        "witness_statement"
+      ]
+    },
+    {
+      "user_query": "Someone stole my laptop from office, I saw who did it on CCTV",
+      "legal_context": "Theft under IPC Section 378",
+      "situation_analysis": {
+        "crime_type": "theft",
+        "urgency": "high",
+        "evidence_available": true,
+        "perpetrator_identified": true,
+        "location": "workplace"
+      },
+      "expected_response_type": "immediate_action",
+      "legal_sections": [
+        "IPC 378",
+        "IPC 379",
+        "IPC 411"
+      ],
+      "priority_actions": [
+        "file_fir",
+        "preserve_cctv",
+        "inform_employer"
+      ]
+    },
+    {
+      "user_query": "My Instagram was hacked, they posted inappropriate photos and demanding 50000 rupees",
+      "legal_context": "Cybercrime and Extortion under IT Act and IPC",
+      "situation_analysis": {
+        "crime_type": "cybercrime_extortion",
+        "urgency": "high",
+        "financial_demand": true,
+        "reputation_damage": true,
+        "platform": "social_media"
+      },
+      "expected_response_type": "cyber_response",
+      "legal_sections": [
+        "IT Act 66",
+        "IT Act 66A",
+        "IPC 384",
+        "IPC 509"
+      ],
+      "priority_actions": [
+        "report_platform",
+        "cybercrime_portal",
+        "preserve_evidence"
+      ]
+    },
+    {
+      "user_query": "My husband beats me regularly and demands more dowry money",
+      "legal_context": "Domestic Violence and Dowry Harassment",
+      "situation_analysis": {
+        "crime_type": "domestic_violence_dowry",
+        "urgency": "high",
+        "physical_harm": true,
+        "financial_harassment": true,
+        "victim_type": "spouse"
+      },
+      "expected_response_type": "protection_focused",
+      "legal_sections": [
+        "DV Act 2005",
+        "IPC 498A",
+        "Dowry Prohibition Act"
+      ],
+      "priority_actions": [
+        "women_helpline",
+        "protection_order",
+        "medical_evidence"
+      ]
+    },
+    {
+      "user_query": "Someone called pretending to be from my bank and stole 25000 rupees",
+      "legal_context": "Financial Fraud and Cheating",
+      "situation_analysis": {
+        "crime_type": "financial_fraud",
+        "urgency": "high",
+        "financial_loss": true,
+        "method": "phone_fraud",
+        "amount": 25000
+      },
+      "expected_response_type": "financial_recovery",
+      "legal_sections": [
+        "IPC 420",
+        "IT Act 66D",
+        "RBI Guidelines"
+      ],
+      "priority_actions": [
+        "inform_bank",
+        "cyber_complaint",
+        "transaction_dispute"
+      ]
+    },
+    {
+      "user_query": "My boss is sending inappropriate messages and touching me inappropriately",
+      "legal_context": "Sexual Harassment at Workplace",
+      "situation_analysis": {
+        "crime_type": "sexual_harassment",
+        "urgency": "high",
+        "location": "workplace",
+        "evidence_available": true,
+        "power_dynamics": true
+      },
+      "expected_response_type": "workplace_protection",
+      "legal_sections": [
+        "POSH Act 2013",
+        "IPC 354",
+        "IPC 509"
+      ],
+      "priority_actions": [
+        "internal_committee",
+        "evidence_preservation",
+        "legal_notice"
+      ]
+    },
+    {
+      "user_query": "My neighbor built a wall on my property and refuses to remove it",
+      "legal_context": "Property Dispute and Trespass",
+      "situation_analysis": {
+        "crime_type": "property_dispute",
+        "urgency": "moderate",
+        "civil_matter": true,
+        "documentation_needed": true
+      },
+      "expected_response_type": "civil_remedy",
+      "legal_sections": [
+        "IPC 441",
+        "Transfer of Property Act",
+        "Civil Procedure Code"
+      ],
+      "priority_actions": [
+        "survey_documents",
+        "legal_notice",
+        "civil_suit"
+      ]
+    },
+    {
+      "user_query": "Someone is posting my personal photos on fake social media profiles",
+      "legal_context": "Cyber Harassment and Privacy Violation",
+      "situation_analysis": {
+        "crime_type": "cyber_harassment",
+        "urgency": "high",
+        "privacy_violation": true,
+        "reputation_damage": true,
+        "platform": "multiple_social_media"
+      },
+      "expected_response_type": "privacy_protection",
+      "legal_sections": [
+        "IT Act 66E",
+        "IPC 509",
+        "Right to Privacy"
+      ],
+      "priority_actions": [
+        "report_platforms",
+        "cyber_complaint",
+        "takedown_notice"
+      ]
+    },
+    {
+      "user_query": "My company fired me without notice and is not paying my salary",
+      "legal_context": "Employment Law Violation",
+      "situation_analysis": {
+        "crime_type": "employment_violation",
+        "urgency": "moderate",
+        "financial_loss": true,
+        "labor_rights": true
+      },
+      "expected_response_type": "labor_remedy",
+      "legal_sections": [
+        "Industrial Disputes Act",
+        "Payment of Wages Act",
+        "Labor Laws"
+      ],
+      "priority_actions": [
+        "labor_commissioner",
+        "legal_notice",
+        "conciliation"
+      ]
+    },
+    {
+      "user_query": "I bought a phone online, they sent a fake product and refuse to refund",
+      "legal_context": "Consumer Protection and E-commerce Fraud",
+      "situation_analysis": {
+        "crime_type": "consumer_fraud",
+        "urgency": "moderate",
+        "financial_loss": true,
+        "e_commerce": true,
+        "defective_product": true
+      },
+      "expected_response_type": "consumer_remedy",
+      "legal_sections": [
+        "Consumer Protection Act 2019",
+        "IPC 420",
+        "E-commerce Rules"
+      ],
+      "priority_actions": [
+        "consumer_forum",
+        "platform_complaint",
+        "refund_claim"
+      ]
+    }
+  ]
+}

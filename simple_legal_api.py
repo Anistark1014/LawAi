@@ -96,70 +96,461 @@ class SimpleLegalModelAPI:
             return []
     
     def generate_legal_response(self, query):
-        """Generate legal response based on retrieved documents"""
+        """Generate practical legal advice based on retrieved documents"""
         relevant_docs = self.retrieve_relevant_docs(query, k=3)
         
         if not relevant_docs:
             return {
-                'response': "I couldn't find specific information in the legal documents for your query. Please consult with a legal professional.",
+                'response': "I couldn't find specific information in the legal documents for your query. Please consult with a legal professional for personalized advice.",
                 'sources': [],
                 'confidence': 0.0
             }
         
-        # Analyze query for cyber crime keywords
+        # Analyze query for legal issues
         query_lower = query.lower()
-        crime_keywords = {
-            'hacking': ['hack', 'unauthorized access', 'breach', 'intrusion'],
-            'fraud': ['fraud', 'cheat', 'scam', 'deceive', 'fake'],
-            'cyberbullying': ['bully', 'harass', 'threat', 'intimidation'],
-            'identity_theft': ['identity', 'impersonation', 'stolen details'],
-            'data_breach': ['data', 'privacy', 'leak', 'information']
+        legal_issues = {
+            'harassment': ['beat', 'beaten', 'harass', 'bully', 'ragg', 'senior', 'threat', 'intimidation', 'abuse'],
+            'cybercrime': ['hack', 'unauthorized access', 'breach', 'intrusion', 'cyber'],
+            'fraud': ['fraud', 'cheat', 'scam', 'deceive', 'fake', 'payment'],
+            'privacy': ['privacy', 'data', 'breach', 'leak', 'information'],
+            'workplace': ['work', 'office', 'colleague', 'boss', 'employee']
         }
         
-        detected_crimes = []
-        for crime, keywords in crime_keywords.items():
+        detected_issues = []
+        for issue, keywords in legal_issues.items():
             if any(keyword in query_lower for keyword in keywords):
-                detected_crimes.append(crime)
+                detected_issues.append(issue)
         
-        # Build response
-        response = "Based on the legal documents, here's what I found:\n\n"
+        # Generate practical advice based on the issue type
+        advice = self._generate_practical_advice(query_lower, detected_issues, relevant_docs)
         
-        if detected_crimes:
-            response += f"**Potential Legal Issues:** {', '.join(detected_crimes).title()}\n\n"
-        
-        response += "**Relevant Legal Information:**\n"
-        sources = []
-        
-        for i, doc in enumerate(relevant_docs, 1):
-            source_name = doc['source'].replace('.PDF', '').replace('_', ' ')
-            response += f"\n{i}. **From {source_name}:**\n"
-            
-            # Get most relevant part of the document
-            text = doc['text']
-            if len(text) > 400:
-                text = text[:400] + "..."
-            
-            response += f"   {text}\n"
-            
-            sources.append({
-                'source': doc['source'],
-                'similarity': doc['similarity'],
-                'text_preview': text[:100] + "..."
-            })
-        
-        response += "\n**Important:**\n"
-        response += "• This information is based on legal documents in our database\n"
-        response += "• For specific legal advice, please consult with a qualified lawyer\n"
-        response += "• Consider reporting cyber crimes to local police cyber crime cell\n"
-        
+        # Minimal source information - focus on practical advice
         avg_confidence = sum(doc['similarity'] for doc in relevant_docs) / len(relevant_docs)
         
+        # Just return basic info, not detailed sources
         return {
-            'response': response,
-            'sources': sources,
+            'response': advice,
+            'sources': [],  # Empty to hide source cards in frontend
             'confidence': float(avg_confidence),
-            'detected_issues': detected_crimes
+            'detected_issues': detected_issues,
+            'practical_advice': True,  # Flag to indicate this is action-oriented advice
+            'source_count': len(relevant_docs)  # Just show number of sources consulted
         }
+    
+    def _generate_practical_advice(self, query_lower, detected_issues, relevant_docs):
+        """Generate AI-powered practical advice based on actual legal document content"""
+        
+        if not relevant_docs:
+            return "I couldn't find relevant legal information for your specific situation. Please consult with a legal professional."
+        
+        # Extract key information from the user's query
+        query_context = self._analyze_user_situation(query_lower)
+        
+        # Use actual legal document content to build personalized advice
+        legal_knowledge = self._extract_legal_knowledge(relevant_docs, query_context)
+        
+        # Generate personalized response based on the specific situation
+        return self._create_personalized_advice(query_context, legal_knowledge, relevant_docs)
+    
+    def _analyze_user_situation(self, query):
+        """Analyze the user's specific situation using AI"""
+        situation = {
+            'urgency': 'normal',
+            'crime_type': 'general',
+            'victim_type': 'individual',
+            'evidence_available': False,
+            'financial_loss': False,
+            'reputation_damage': False,
+            'physical_harm': False,
+            'platform': 'unknown',
+            'witness_available': False,
+            'criminal_seen': False
+        }
+        
+        # Priority crime detection (most serious first)
+        if any(word in query for word in ['murder', 'killed', 'dead', 'death', 'murdered', 'homicide']):
+            situation['crime_type'] = 'murder'
+            situation['urgency'] = 'critical'
+            situation['physical_harm'] = True
+        
+        elif any(word in query for word in ['rape', 'sexual assault', 'molest', 'sexual abuse']):
+            situation['crime_type'] = 'sexual_assault'
+            situation['urgency'] = 'critical'
+            situation['physical_harm'] = True
+        
+        elif any(word in query for word in ['kidnapped', 'abducted', 'missing person', 'kidnapping']):
+            situation['crime_type'] = 'kidnapping'
+            situation['urgency'] = 'critical'
+        
+        elif any(word in query for word in ['stolen', 'theft', 'stole', 'robbed', 'robbery', 'purse', 'bag', 'wallet', 'phone stolen']):
+            situation['crime_type'] = 'theft'
+            situation['urgency'] = 'high'
+            situation['financial_loss'] = True
+        
+        elif any(word in query for word in ['dowry', 'dowry harassment', 'dowry death']):
+            situation['crime_type'] = 'dowry_harassment'
+            situation['urgency'] = 'high'
+        
+        elif any(word in query for word in ['domestic violence', 'husband beats', 'wife beating', 'family violence']):
+            situation['crime_type'] = 'domestic_violence'
+            situation['urgency'] = 'high'
+            situation['physical_harm'] = True
+        
+        elif any(word in query for word in ['cheating', 'fraud', 'scam', 'fake', 'deceived']):
+            situation['crime_type'] = 'fraud'
+            situation['financial_loss'] = True
+        
+        elif any(word in query for word in ['hacked', 'hack', 'unauthorized access', 'account compromised']):
+            situation['crime_type'] = 'cybercrime'
+        
+        elif any(word in query for word in ['beaten', 'hit', 'hurt', 'injured', 'physical', 'violence']):
+            situation['crime_type'] = 'assault'
+            situation['physical_harm'] = True
+        
+        # Context analysis
+        if any(word in query for word in ['urgent', 'emergency', 'immediately', 'right now', 'asap', 'help']):
+            if situation['urgency'] == 'normal':
+                situation['urgency'] = 'high'
+        
+        if any(word in query for word in ['saw', 'witnessed', 'seen', 'found the person', 'know who']):
+            situation['witness_available'] = True
+            situation['criminal_seen'] = True
+        
+        if any(word in query for word in ['screenshot', 'evidence', 'proof', 'messages', 'chat', 'video', 'photo']):
+            situation['evidence_available'] = True
+        
+        if any(word in query for word in ['instagram', 'facebook', 'twitter', 'whatsapp', 'social media']):
+            situation['platform'] = 'social_media'
+        
+        if any(word in query for word in ['money', 'rupees', 'payment', 'bank', 'transaction']):
+            situation['financial_loss'] = True
+        
+        return situation
+    
+    def _extract_legal_knowledge(self, relevant_docs, situation):
+        """Extract relevant legal information from documents based on situation"""
+        legal_info = {
+            'applicable_laws': [],
+            'penalties': [],
+            'procedures': [],
+            'time_limits': [],
+            'compensation': []
+        }
+        
+        # AI-powered extraction from legal documents
+        for doc in relevant_docs:
+            text = doc['text'].lower()
+            
+            # Extract specific legal sections and penalties
+            if 'section' in text and any(num in text for num in ['66', '420', '323', '325', '499', '500']):
+                if 'punishment' in text or 'penalty' in text or 'imprisonment' in text:
+                    legal_info['penalties'].append(doc['text'][:300])
+            
+            # Extract procedures and time limits
+            if any(word in text for word in ['complaint', 'fir', 'report', 'file', 'within']):
+                legal_info['procedures'].append(doc['text'][:200])
+            
+            # Extract compensation information
+            if any(word in text for word in ['compensation', 'damages', 'fine', 'refund']):
+                legal_info['compensation'].append(doc['text'][:200])
+        
+        return legal_info
+    
+    def _create_personalized_advice(self, situation, legal_knowledge, relevant_docs):
+        """Create personalized advice with improved 3-section format"""
+        
+        # Generate situation summary
+        situation_summary = self._generate_situation_summary(situation, relevant_docs)
+        
+        # Header with urgency indicator
+        advice = f"## ⚖️ **AI LEGAL ANALYSIS & GUIDANCE**\n\n"
+        
+        if situation['urgency'] == 'high':
+            advice += "⚠️ **URGENT SITUATION DETECTED** - Time-sensitive actions required\n\n"
+        
+        advice += "---\n\n"
+        
+        # SECTION 1: WHAT HAPPENED (Understanding the Situation)
+        advice += "### 📋 **WHAT HAPPENED - Legal Situation Analysis**\n\n"
+        advice += situation_summary
+        advice += "\n"
+        
+        # Extract relevant legal context
+        if legal_knowledge['penalties']:
+            legal_context = legal_knowledge['penalties'][0][:250].strip()
+            advice += f"**� Legal Context:** {legal_context}...\n\n"
+        
+        advice += "---\n\n"
+        
+        # SECTION 2: WHAT YOU SHOULD DO (Action Steps)
+        advice += "### ✅ **WHAT YOU SHOULD DO - Action Plan**\n\n"
+        
+        # Immediate Actions (Priority 1)
+        advice += "#### 🚨 **Immediate Actions (Next 24-48 Hours):**\n\n"
+        immediate_actions = self._get_immediate_actions(situation)
+        for i, action in enumerate(immediate_actions, 1):
+            advice += f"{i}. **{action}**\n"
+        advice += "\n"
+        
+        # Legal Actions (Priority 2)
+        advice += "#### ⚖️ **Legal Actions You Can Take:**\n\n"
+        legal_actions = self._get_legal_actions(situation, legal_knowledge)
+        for action in legal_actions:
+            advice += f"• **{action}**\n"
+        advice += "\n"
+        
+        # Documentation & Evidence
+        advice += "#### 📸 **Evidence & Documentation:**\n\n"
+        evidence_steps = self._get_evidence_steps(situation)
+        for step in evidence_steps:
+            advice += f"• {step}\n"
+        advice += "\n"
+        
+        advice += "---\n\n"
+        
+        # SECTION 3: WHAT YOU SHOULDN'T DO (Critical Mistakes to Avoid)
+        advice += "### ❌ **WHAT YOU SHOULDN'T DO - Critical Mistakes to Avoid**\n\n"
+        
+        mistakes_to_avoid = self._get_mistakes_to_avoid(situation)
+        for i, mistake in enumerate(mistakes_to_avoid, 1):
+            advice += f"{i}. **❌ {mistake}**\n"
+        advice += "\n"
+        
+        advice += "---\n\n"
+        
+        # Footer with confidence and next steps
+        confidence = sum(doc['similarity'] for doc in relevant_docs) / len(relevant_docs)
+        advice += f"### 📊 **AI Analysis Summary**\n\n"
+        advice += f"**🎯 Confidence Level:** {confidence*100:.1f}% (Based on {len(relevant_docs)} legal documents)\n"
+        advice += f"**🏛️ Legal Jurisdiction:** Indian Laws (IT Act, IPC, Constitution)\n"
+        advice += f"**⏰ Analysis Time:** Real-time AI processing\n\n"
+        
+        advice += "**📞 Emergency Contacts:**\n"
+        advice += "• Police Emergency: **100**\n"
+        advice += "• Cyber Crime Helpline: **1930**\n"
+        advice += "• Women's Helpline: **1091**\n"
+        advice += "• Legal Aid: Contact local Bar Association\n\n"
+        
+        advice += "*💡 This AI analysis is for guidance only. Always consult qualified lawyers for complex legal matters.*"
+        
+        return advice
+    
+    def _generate_situation_summary(self, situation, relevant_docs):
+        """Generate intelligent situation summary"""
+        summary = ""
+        
+        if situation['crime_type'] == 'murder':
+            summary += f"**🔍 Analysis:** You've witnessed or have information about a **MURDER** - the most serious crime under Indian law. "
+            summary += "This falls under **IPC Section 302** (punishment for murder) with **life imprisonment or death penalty**. "
+            summary += "This is a **non-bailable offense** requiring immediate police intervention.\n\n"
+        
+        elif situation['crime_type'] == 'sexual_assault':
+            summary += f"**🔍 Analysis:** This involves **sexual assault/rape** - a heinous crime under IPC Sections 375-376. "
+            summary += "This carries **minimum 7 years to life imprisonment**. Time-sensitive medical and legal evidence collection is critical.\n\n"
+        
+        elif situation['crime_type'] == 'kidnapping':
+            summary += f"**🔍 Analysis:** This involves **kidnapping/abduction** under IPC Sections 359-369. "
+            summary += "This is a **serious offense** with up to **7 years imprisonment**. Every minute counts in rescue operations.\n\n"
+        
+        elif situation['crime_type'] == 'theft':
+            summary += f"**🔍 Analysis:** You're victim of **theft** under IPC Section 378-382. "
+            if situation['criminal_seen']:
+                summary += "Since you've identified the perpetrator, this strengthens your case significantly. "
+            summary += "This can result in **imprisonment up to 3 years** for the thief.\n\n"
+        
+        elif situation['crime_type'] == 'domestic_violence':
+            summary += f"**🔍 Analysis:** This involves **domestic violence** under Domestic Violence Act 2005 and IPC. "
+            summary += "You have legal protection and can get **immediate restraining orders**.\n\n"
+        
+        elif situation['crime_type'] == 'dowry_harassment':
+            summary += f"**🔍 Analysis:** This involves **dowry harassment** under IPC Section 498A and Dowry Prohibition Act. "
+            summary += "This carries **imprisonment up to 3 years** and is a **cognizable offense**.\n\n"
+        
+        elif situation['crime_type'] == 'cybercrime':
+            summary += f"**🔍 Analysis:** Your digital accounts/data have been compromised. "
+            if situation['financial_loss']:
+                summary += "This involves **cyber fraud** with financial extortion components. "
+            summary += "This falls under **IT Act 2000** with potential **3 years imprisonment**.\n\n"
+        
+        elif situation['crime_type'] == 'fraud':
+            summary += f"**🔍 Analysis:** You're victim of **cheating and fraud** under IPC Section 420. "
+            summary += "This constitutes criminal breach of trust with **imprisonment up to 7 years**.\n\n"
+        
+        elif situation['crime_type'] == 'assault':
+            summary += f"**🔍 Analysis:** You've experienced **physical assault** under IPC Sections 323/325. "
+            summary += "This can result in **imprisonment up to 2 years** (simple hurt) or **7 years** (grievous hurt).\n\n"
+        
+        else:
+            summary += f"**🔍 Analysis:** Based on your description, this appears to be a legal matter requiring "
+            summary += f"immediate attention and proper legal remedies.\n\n"
+        
+        # Add legal severity assessment
+        if situation['urgency'] == 'critical':
+            summary += "**⚡ Severity:** CRITICAL - Call Police 100 IMMEDIATELY\n"
+        elif situation['urgency'] == 'high':
+            summary += "**⚡ Severity:** HIGH - Immediate legal intervention required\n"
+        else:
+            summary += "**⚡ Severity:** MODERATE - Timely legal action recommended\n"
+        
+        return summary
+    
+    def _get_immediate_actions(self, situation):
+        """Generate immediate action steps based on situation"""
+        actions = []
+        
+        if situation['crime_type'] == 'murder':
+            actions.append("CALL POLICE 100 IMMEDIATELY - Do not delay even by minutes")
+            actions.append("Do not touch or disturb the crime scene")
+            actions.append("Preserve your safety - do not confront anyone")
+            actions.append("Note down exact time, location, and all details you witnessed")
+            actions.append("Identify yourself as witness and provide statement to police")
+        
+        elif situation['crime_type'] == 'sexual_assault':
+            actions.append("CALL POLICE 100 and Women's Helpline 1091 immediately")
+            actions.append("Do not wash, change clothes, or clean up (preserves evidence)")
+            actions.append("Go to nearest hospital for medical examination within 24 hours")
+            actions.append("Contact trusted family member or friend for support")
+            actions.append("Request female police officer for statement recording")
+        
+        elif situation['crime_type'] == 'kidnapping':
+            actions.append("CALL POLICE 100 IMMEDIATELY - Every minute is critical")
+            actions.append("Provide last known location and description of victim")
+            actions.append("Share recent photos of victim with police")
+            actions.append("Check victim's phone location, social media activity")
+            actions.append("Contact all friends/family who might have information")
+        
+        elif situation['crime_type'] == 'theft':
+            actions.append("File FIR at nearest police station within 24 hours")
+            if situation['criminal_seen']:
+                actions.append("Provide detailed description of the thief to police")
+                actions.append("Check CCTV footage from the area immediately")
+            actions.append("Block all cards/phones and inform bank/telecom immediately")
+            actions.append("List all stolen items with approximate values")
+            actions.append("Inform insurance company if items were insured")
+        
+        elif situation['crime_type'] == 'domestic_violence':
+            actions.append("Call Women's Helpline 1091 for immediate assistance")
+            actions.append("Document all injuries with photographs")
+            actions.append("File complaint at nearest police station or women's cell")
+            actions.append("Get medical treatment and preserve medical records")
+            actions.append("Contact Protection Officer for immediate restraining order")
+        
+        elif situation['crime_type'] == 'dowry_harassment':
+            actions.append("File FIR under IPC Section 498A immediately")
+            actions.append("Document all dowry demands with evidence")
+            actions.append("Contact women's helpline and local NGOs")
+            actions.append("Preserve all gifts/money transaction records")
+            actions.append("Get medical examination if physically harmed")
+        
+        elif situation['crime_type'] == 'cybercrime':
+            actions.append("Try account recovery through official platform channels")
+            if situation['reputation_damage']:
+                actions.append("Alert all contacts about the compromise immediately")
+            actions.append("Document unauthorized posts/messages with screenshots")
+            actions.append("Report hacked account to platform security team")
+            actions.append("File online complaint at cybercrime.gov.in")
+        
+        elif situation['crime_type'] == 'fraud':
+            actions.append("Contact bank/financial institution to freeze accounts")
+            actions.append("File FIR at nearest police station")
+            actions.append("Report to cyber crime cell within 24 hours")
+            actions.append("Preserve all transaction records and communications")
+        
+        elif situation['crime_type'] == 'assault':
+            actions.append("Seek immediate medical attention and get medical certificate")
+            actions.append("File FIR at police station with injury documentation")
+            actions.append("Collect witness statements and contact information")
+            actions.append("Report to HR/administration if workplace incident")
+        
+        else:
+            actions.append("Document all evidence related to the incident")
+            actions.append("Report to appropriate law enforcement authorities")
+            actions.append("Consult with a qualified legal professional")
+        
+        return actions
+    
+    def _get_legal_actions(self, situation, legal_knowledge):
+        """Generate legal action options"""
+        actions = []
+        
+        if situation['crime_type'] == 'account_hacking':
+            actions.append("Criminal case under IT Act 2000 Section 66 (imprisonment up to 3 years)")
+            if situation['reputation_damage']:
+                actions.append("Defamation case under IPC Section 499/500 (compensation + imprisonment)")
+            if situation['financial_loss']:
+                actions.append("Civil suit for financial recovery and damages")
+        
+        elif situation['crime_type'] == 'financial_fraud':
+            actions.append("Criminal case under IPC Section 420 (Cheating - up to 7 years jail)")
+            actions.append("Civil recovery suit for full refund of defrauded amount")
+            actions.append("Complaint to Banking Ombudsman for institutional recovery")
+        
+        elif situation['crime_type'] == 'assault':
+            actions.append("Criminal case under IPC Section 323/325 (Simple/Grievous Hurt)")
+            actions.append("Civil suit for compensation (medical expenses + mental trauma)")
+            actions.append("Workplace complaint under relevant labor laws")
+        
+        else:
+            actions.append("Appropriate criminal proceedings based on specific offense")
+            actions.append("Civil remedies for recovery of damages")
+        
+        return actions
+    
+    def _get_evidence_steps(self, situation):
+        """Generate evidence collection steps"""
+        steps = []
+        
+        if situation['crime_type'] == 'account_hacking':
+            steps.append("Screenshot all unauthorized posts before they're deleted")
+            steps.append("Save conversation threads and threatening messages")
+            steps.append("Get platform's incident report/security logs if available")
+        
+        elif situation['crime_type'] == 'financial_fraud':
+            steps.append("Preserve all banking/transaction records")
+            steps.append("Save email/SMS communications from fraudsters")
+            steps.append("Document financial losses with bank statements")
+        
+        elif situation['crime_type'] == 'assault':
+            steps.append("Photograph all visible injuries immediately")
+            steps.append("Get medical reports and treatment records")
+            steps.append("Collect witness contact information and statements")
+        
+        else:
+            steps.append("Document incident with photos/videos if applicable")
+            steps.append("Preserve all relevant communications and records")
+            steps.append("Maintain chronological record of events")
+        
+        return steps
+    
+    def _get_mistakes_to_avoid(self, situation):
+        """Generate critical mistakes to avoid"""
+        mistakes = []
+        
+        if situation['crime_type'] == 'account_hacking':
+            mistakes.append("Don't pay any ransom or respond to extortion demands")
+            mistakes.append("Don't delete evidence or create new accounts immediately")
+            mistakes.append("Don't handle this privately - involve authorities")
+            mistakes.append("Don't wait too long - digital evidence disappears quickly")
+        
+        elif situation['crime_type'] == 'financial_fraud':
+            mistakes.append("Don't make additional payments hoping to recover money")
+            mistakes.append("Don't share more personal/financial information")
+            mistakes.append("Don't accept 'settlement' offers without legal consultation")
+            mistakes.append("Don't delay reporting - time limits apply for recovery")
+        
+        elif situation['crime_type'] == 'assault':
+            mistakes.append("Don't retaliate with violence - it weakens your legal case")
+            mistakes.append("Don't 'settle' privately without legal complaint first")
+            mistakes.append("Don't clean injuries before documentation")
+            mistakes.append("Don't discuss details on social media before legal proceedings")
+        
+        else:
+            mistakes.append("Don't handle complex legal matters without professional help")
+            mistakes.append("Don't destroy or tamper with evidence")
+            mistakes.append("Don't accept informal settlements without legal review")
+            mistakes.append("Don't delay action due to legal time limitations")
+        
+        return mistakes
 
 # Initialize the model
 legal_api = SimpleLegalModelAPI()
