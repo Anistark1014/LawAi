@@ -74,6 +74,32 @@ CYBER_CRIMES_DB = {
             "Notify affected parties",
             "Implement security measures"
         ]
+    },
+    "assault": {
+        "keywords": ["hit", "beat", "beaten", "attack", "hurt", "violence", "enemy", "fight", "punch", "kick"],
+        "crime_type": "Physical Assault",
+        "sections": ["IPC Section 323 (Simple Hurt)", "IPC Section 325 (Grievous Hurt)"],
+        "punishment": "Simple Hurt: Up to 1 year imprisonment or fine up to Rs. 1000 | Grievous Hurt: Up to 7 years imprisonment",
+        "process": [
+            "Get immediate medical attention if injured",
+            "File FIR at nearest police station immediately",
+            "Preserve medical records as evidence",
+            "Get witness statements if available",
+            "Take photographs of injuries"
+        ]
+    },
+    "theft": {
+        "keywords": ["stole", "stolen", "theft", "bag", "purse", "wallet", "phone", "laptop", "money", "robbed", "took"],
+        "crime_type": "Theft/Robbery",
+        "sections": ["IPC Section 378 (Theft)", "IPC Section 392 (Robbery)"],
+        "punishment": "Theft: Up to 3 years imprisonment or fine | Robbery: Up to 10 years imprisonment",  
+        "process": [
+            "File FIR at nearest police station immediately",
+            "Provide detailed list of stolen items with values",
+            "Check for CCTV footage in the area",
+            "Block all stolen cards/phones immediately",
+            "Contact insurance company if items were insured"
+        ]
     }
 }
 
