@@ -1,1 +1,1 @@
-web: gunicorn lightweight_api:app
+web: gunicorn production_api:app
