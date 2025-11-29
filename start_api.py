@@ -9,9 +9,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from simple_legal_api import app
 
 if __name__ == '__main__':
-    print("🚀 Starting Legal AI API Server...")
-    print("📍 URL: http://localhost:5000")
-    print("🔗 React Integration: Use endpoints in REACT_INTEGRATION_GUIDE.txt")
+    # ASCII-only logging to avoid encoding issues on Windows shells
+    print("Starting Legal AI API Server...")
+    print("URL: http://localhost:5000")
+    print("React Integration: Use endpoints in REACT_INTEGRATION_GUIDE.txt")
     print("=" * 60)
     
     app.run(
