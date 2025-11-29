@@ -328,23 +328,23 @@ const AIJusticeBot = () => {
           >
             {loading ? strings.processing : strings.send}
           </button>
+          
+          {(history.length > 0 || response || documentResponse) && (
+            <button
+              type="button"
+              className="clear-history"
+              onClick={() => {
+                setHistory([]);
+                setResponse(null);
+                setDocumentResponse(null);
+                setDetectedLanguage(uiLanguage);
+                setTranslationError(false);
+              }}
+            >
+              {strings.clear}
+            </button>
+          )}
         </div>
-
-        {history.length > 0 && (
-          <button
-            type="button"
-            className="clear-history"
-            onClick={() => {
-              setHistory([]);
-              setResponse(null);
-              setDocumentResponse(null);
-              setDetectedLanguage(uiLanguage);
-              setTranslationError(false);
-            }}
-          >
-            {strings.clear}
-          </button>
-        )}
       </div>
 
       {response ? (
@@ -447,13 +447,18 @@ const AIJusticeBot = () => {
         }
 
         .clear-history {
-          margin-top: 10px;
-          background: #6c757d;
+          background: #dc3545;
           color: white;
           border: none;
-          padding: 8px 16px;
-          border-radius: 6px;
+          padding: 12px 24px;
+          border-radius: 8px;
           cursor: pointer;
+          font-size: 16px;
+          margin-left: 10px;
+        }
+
+        .clear-history:hover {
+          background: #c82333;
         }
 
         .language-badge {
