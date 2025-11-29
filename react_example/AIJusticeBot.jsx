@@ -27,6 +27,12 @@ const UI_STRINGS = {
     uploading: 'Processing document…',
     documentAnalysis: 'Document Analysis',
     noDocument: 'No document analysed yet.',
+    learn: 'Learn',
+    news: 'News',
+    home: 'Home',
+    about: 'About',
+    contact: 'Contact',
+    help: 'Help',
     languageNames: {
       en: 'English',
       hi: 'Hindi',
@@ -59,6 +65,12 @@ const UI_STRINGS = {
     uploading: 'दस्तावेज़ प्रोसेस हो रहा है…',
     documentAnalysis: 'दस्तावेज़ विश्लेषण',
     noDocument: 'अभी तक कोई दस्तावेज़ का विश्लेषण नहीं किया गया।',
+    learn: 'सीखें',
+    news: 'समाचार',
+    home: 'होम',
+    about: 'हमारे बारे में',
+    contact: 'संपर्क करें',
+    help: 'सहायता',
     languageNames: {
       en: 'अंग्रेज़ी',
       hi: 'हिंदी',
@@ -91,6 +103,12 @@ const UI_STRINGS = {
     uploading: 'कागदपत्र प्रक्रिया सुरू आहे…',
     documentAnalysis: 'कागदपत्र विश्लेषण',
     noDocument: 'अद्याप कोणत्याही कागदपत्राचे विश्लेषण केले नाही।',
+    learn: 'शिका',
+    news: 'बातम्या',
+    home: 'मुख्यपृष्ठ',
+    about: 'आमच्याबद्दल',
+    contact: 'संपर्क',
+    help: 'मदत',
     languageNames: {
       en: 'इंग्रजी',
       hi: 'हिंदी',
@@ -580,6 +598,14 @@ const AIJusticeBot = () => {
       `}</style>
     </div>
   );
+};
+
+// Export UI_STRINGS for use in parent components
+export { UI_STRINGS };
+
+// Helper function to get translation strings
+export const getTranslationStrings = (language = 'en') => {
+  return UI_STRINGS[language] || UI_STRINGS.en;
 };
 
 export default AIJusticeBot;
