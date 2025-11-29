@@ -4,6 +4,7 @@ This is faster and more reliable than transformer training
 """
 
 import os
+import io
 import json
 import pickle
 import numpy as np
@@ -12,6 +13,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
+from deep_translator import GoogleTranslator
+from PyPDF2 import PdfReader
+from PIL import Image
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+try:
+    import pytesseract
+except ImportError:  # Optional OCR dependency
+    pytesseract = None
+
+    marathi_tokenizer = None
+    marathi_model = None
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -20,9 +33,151 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+SUPPORTED_LANGUAGES = {
+    "en": "English",
+    "hi": "Hindi",
+    "mr": "Marathi"
+}
+
+MARATHI_HINTS = {
+    "मराठी", "कृपया", "आहे", "कायदा", "माझे", "करा", "तुम्ही", "नाही", "काय", "माझ्या"
+}
+
+HINDI_HINTS = {
+    "हिंदी", "कृपया", "है", "कानून", "मेरा", "आप", "नहीं", "क्या", "किए", "करें"
+}
+
+
+def detect_language(text):
+    """Tiny heuristic detector for supported languages."""
+    if not text:
+        return "en"
+
+    lowered = text.lower()
+    has_devanagari = any('\u0900' <= ch <= '\u097f' for ch in lowered)
+
+    if not has_devanagari:
+        return "en"
+
+    if "मराठी" in lowered:
+        return "mr"
+    if "हिंदी" in lowered:
+        return "hi"
+
+    marathi_score = sum(1 for hint in MARATHI_HINTS if hint in lowered)
+    hindi_score = sum(1 for hint in HINDI_HINTS if hint in lowered)
+
+    if marathi_score > hindi_score:
+        return "mr"
+    if hindi_score > marathi_score:
+        return "hi"
+
+    # Default to Hindi for Devanagari script when unsure
+    return "hi"
+
+
+def simplify_markdown(text):
+    """Convert heavy markdown formatting into plain conversational text."""
+    if not isinstance(text, str):
+        return text
+
+    cleaned = text.replace('**', '')
+    for marker in ['## ', '### ', '#### ', '---']:
+        cleaned = cleaned.replace(marker, '')
+
+    cleaned = cleaned.replace('•', '•')  # ensure bullet symbol remains consistent
+    return '\n'.join(line.strip() for line in cleaned.splitlines() if line.strip())
+
+
+ALLOWED_DOCUMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "webp", "bmp"}
+MAX_DOCUMENT_CHARACTERS = 6000
+
+
+def extract_text_from_pdf(file_bytes):
+    reader = PdfReader(io.BytesIO(file_bytes))
+    pages = []
+    for page in reader.pages:
+        try:
+            page_text = page.extract_text() or ""
+        except Exception:
+            page_text = ""
+        if page_text:
+            pages.append(page_text)
+    return "\n".join(pages)
+
+
+def extract_text_from_image(file_bytes):
+    if pytesseract is None:
+        raise RuntimeError("Image OCR requires pytesseract. Please install pytesseract and the Tesseract engine.")
+    image = Image.open(io.BytesIO(file_bytes))
+    try:
+        return pytesseract.image_to_string(image)
+    finally:
+        image.close()
+
+
+def extract_text_from_document(file_bytes, extension):
+    if extension == 'pdf':
+        return extract_text_from_pdf(file_bytes)
+    if extension in {'png', 'jpg', 'jpeg', 'webp', 'bmp'}:
+        return extract_text_from_image(file_bytes)
+    raise ValueError(f"Unsupported file type: {extension}")
+
+
+def ensure_marathi_model():
+    global marathi_tokenizer, marathi_model
+    if marathi_tokenizer is None or marathi_model is None:
+        marathi_tokenizer = AutoTokenizer.from_pretrained('Helsinki-NLP/opus-mt-en-mr')
+        marathi_model = AutoModelForSeq2SeqLM.from_pretrained('Helsinki-NLP/opus-mt-en-mr')
+
+
+def translate_to_marathi(text):
+    if not text:
+        return text
+
+    ensure_marathi_model()
+
+    paragraphs = [para.strip() for para in text.split('\n')]
+    translated_paragraphs = []
+
+    buffer = []
+    buffer_len = 0
+
+    def flush_buffer():
+        nonlocal buffer_len
+        if not buffer:
+            return
+        segment = ' '.join(buffer).strip()
+        buffer.clear()
+        buffer_len = 0
+        if not segment:
+            return
+        inputs = marathi_tokenizer(segment, return_tensors="pt", padding=True, truncation=True)
+        outputs = marathi_model.generate(**inputs, max_length=512)
+        translated = marathi_tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        translated_paragraphs.append(translated)
+
+    for para in paragraphs:
+        if not para:
+            flush_buffer()
+            translated_paragraphs.append('')
+            continue
+
+        if buffer_len + len(para) > 400:
+            flush_buffer()
+
+        buffer.append(para)
+        buffer_len += len(para)
+
+    flush_buffer()
+
+    return '\n'.join(translated_paragraphs).strip()
+
+
 class SimpleLegalModelAPI:
     def __init__(self, model_dir="simple_legal_model"):
-        self.model_dir = model_dir
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.model_dir = model_dir if os.path.isabs(model_dir) else os.path.join(base_dir, model_dir)
         self.documents = []
         self.faiss_index = None
         self.embeddings = None
@@ -128,13 +283,17 @@ class SimpleLegalModelAPI:
         avg_confidence = sum(doc['similarity'] for doc in relevant_docs) / len(relevant_docs)
         
         # Just return basic info, not detailed sources
+        supporting_snippets = []
+        for doc in relevant_docs[:2]:
+            supporting_snippets.append({
+                'source': doc.get('source', 'Legal Document'),
+                'snippet': doc['text'][:500]
+            })
+
         return {
             'response': advice,
-            'sources': [],  # Empty to hide source cards in frontend
-            'confidence': float(avg_confidence),
-            'detected_issues': detected_issues,
-            'practical_advice': True,  # Flag to indicate this is action-oriented advice
-            'source_count': len(relevant_docs)  # Just show number of sources consulted
+            'supporting_snippets': supporting_snippets,
+            'source_count': len(relevant_docs)
         }
     
     def _generate_practical_advice(self, query_lower, detected_issues, relevant_docs):
@@ -589,19 +748,126 @@ def legal_advice():
                 "status": "error"
             }), 500
         
+        auto_language = detect_language(query)
+        requested_language = data.get('language', auto_language)
+        if isinstance(requested_language, str):
+            requested_language = requested_language.lower()
+        else:
+            requested_language = auto_language
+
+        if requested_language not in SUPPORTED_LANGUAGES:
+            requested_language = 'en'
+
+        detected_language = auto_language if auto_language in SUPPORTED_LANGUAGES else 'en'
+
+        processed_query = query
+        if detected_language != 'en' or not query.isascii():
+            try:
+                processed_query = GoogleTranslator(source='auto', target='en').translate(query)
+            except Exception as translate_error:
+                logger.error(f"Query translation failed: {translate_error}")
+                processed_query = query
+
         # Generate response
-        result = legal_api.generate_legal_response(query)
-        
-        return jsonify({
-            "response": result['response'],
-            "sources": result['sources'],
-            "confidence": result['confidence'],
-            "detected_issues": result.get('detected_issues', []),
+        result = legal_api.generate_legal_response(processed_query)
+        english_response = simplify_markdown(result['response'])
+
+        translated_response = english_response
+        snippet_translator = None
+        translation_failed = False
+        response_language = requested_language
+
+        if response_language == 'mr':
+            try:
+                translated_response = translate_to_marathi(english_response)
+            except Exception as translate_error:
+                logger.error(f"Marathi translation failed: {translate_error}")
+                translated_response = english_response
+                translation_failed = True
+                response_language = 'en'
+        elif response_language != 'en':
+            try:
+                snippet_translator = GoogleTranslator(source='auto', target=requested_language)
+                translated_response = snippet_translator.translate(english_response)
+            except Exception as translate_error:
+                logger.error(f"Response translation failed: {translate_error}")
+                translated_response = english_response
+                translation_failed = True
+                response_language = 'en'
+                snippet_translator = None
+
+        translated_input = query
+        if response_language == 'mr':
+            try:
+                translated_input = translate_to_marathi(query)
+            except Exception as translate_error:
+                logger.error(f"Input Marathi translation failed: {translate_error}")
+                translated_input = query
+        elif response_language != 'en':
+            translator_for_input = snippet_translator
+            if translator_for_input is None and response_language != 'en':
+                try:
+                    translator_for_input = GoogleTranslator(source='auto', target=response_language)
+                except Exception as translate_error:
+                    logger.error(f"Input translation setup failed: {translate_error}")
+                    translator_for_input = None
+
+            if translator_for_input:
+                try:
+                    translated_input = translator_for_input.translate(query)
+                except Exception as translate_error:
+                    logger.error(f"Input translation failed: {translate_error}")
+                    translated_input = query
+
+        translated_snippets = []
+        for snippet in result.get('supporting_snippets', []):
+            snippet_text = snippet.get('snippet', '')
+            display_text = snippet_text
+
+            if response_language == 'mr' and snippet_text:
+                try:
+                    display_text = translate_to_marathi(snippet_text)
+                except Exception as snippet_error:
+                    logger.error(f"Snippet Marathi translation failed: {snippet_error}")
+                    display_text = snippet_text
+            elif response_language != 'en' and snippet_translator and snippet_text:
+                try:
+                    display_text = snippet_translator.translate(snippet_text)
+                except Exception as snippet_error:
+                    logger.error(f"Snippet translation failed: {snippet_error}")
+                    display_text = snippet_text
+
+            snippet_payload = {
+                'source': snippet.get('source', 'Legal Document'),
+                'snippet': display_text
+            }
+
+            if response_language != 'en' and display_text != snippet_text:
+                snippet_payload['original_snippet'] = snippet_text
+
+            translated_snippets.append(snippet_payload)
+
+        response_payload = {
+            "response": translated_response,
+            "original_response": english_response,
+            "language": response_language,
+            "detected_language": detected_language,
             "model": "Simple Legal AI",
             "timestamp": datetime.now().isoformat(),
             "status": "success",
-            "query": query
-        })
+            "query": query,
+            "translated_input": translated_input,
+            "supporting_snippets": translated_snippets,
+            "source_count": result.get('source_count', 0)
+        }
+
+        if translation_failed:
+            response_payload["translation_error"] = True
+
+        if processed_query != query:
+            response_payload["processed_query"] = processed_query
+        
+        return jsonify(response_payload)
         
     except Exception as e:
         logger.error(f"Error in legal_advice: {str(e)}")
@@ -643,6 +909,192 @@ def search_documents():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+    @app.route('/api/analyze-document', methods=['POST'])
+    def analyze_document():
+        """Analyze uploaded legal documents (PDF or image) for guidance."""
+        try:
+            if 'file' not in request.files:
+                return jsonify({
+                    "status": "error",
+                    "message": "No file provided. Please upload a PDF or image."
+                }), 400
+
+            uploaded_file = request.files['file']
+            if not uploaded_file or uploaded_file.filename == '':
+                return jsonify({
+                    "status": "error",
+                    "message": "Empty file upload."
+                }), 400
+
+            filename = uploaded_file.filename
+            extension = filename.rsplit('.', 1)[-1].lower()
+            if extension not in ALLOWED_DOCUMENT_EXTENSIONS:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Unsupported file type: {extension}. Allowed: {', '.join(sorted(ALLOWED_DOCUMENT_EXTENSIONS))}."
+                }), 400
+
+            file_bytes = uploaded_file.read()
+            if not file_bytes:
+                return jsonify({
+                    "status": "error",
+                    "message": "Uploaded file is empty."
+                }), 400
+
+            try:
+                extracted_text = extract_text_from_document(file_bytes, extension)
+            except RuntimeError as ocr_error:
+                return jsonify({
+                    "status": "error",
+                    "message": str(ocr_error)
+                }), 400
+            except Exception as extraction_error:
+                logger.error(f"Document extraction failed: {extraction_error}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Unable to read the uploaded document."
+                }), 400
+
+            if not extracted_text or not extracted_text.strip():
+                return jsonify({
+                    "status": "error",
+                    "message": "Could not extract readable text from the document."
+                }), 400
+
+            trimmed_text = extracted_text.strip()
+            if len(trimmed_text) > MAX_DOCUMENT_CHARACTERS:
+                trimmed_text = trimmed_text[:MAX_DOCUMENT_CHARACTERS]
+
+            auto_language = detect_language(trimmed_text)
+            requested_language = request.form.get('language', auto_language)
+            if isinstance(requested_language, str):
+                requested_language = requested_language.lower()
+            else:
+                requested_language = auto_language
+
+            if requested_language not in SUPPORTED_LANGUAGES:
+                requested_language = auto_language if auto_language in SUPPORTED_LANGUAGES else 'en'
+
+            detected_language = auto_language if auto_language in SUPPORTED_LANGUAGES else 'en'
+
+            processed_text = trimmed_text
+            if detected_language != 'en':
+                try:
+                    processed_text = GoogleTranslator(source='auto', target='en').translate(trimmed_text)
+                except Exception as translate_error:
+                    logger.error(f"Document translation failed: {translate_error}")
+                    processed_text = trimmed_text
+
+            result = legal_api.generate_legal_response(processed_text)
+            english_response = simplify_markdown(result['response'])
+
+            translated_response = english_response
+            snippet_translator = None
+            translation_failed = False
+            response_language = requested_language
+
+            if response_language == 'mr':
+                try:
+                    translated_response = translate_to_marathi(english_response)
+                except Exception as translate_error:
+                    logger.error(f"Document Marathi translation failed: {translate_error}")
+                    translated_response = english_response
+                    translation_failed = True
+                    response_language = 'en'
+            elif response_language != 'en':
+                try:
+                    snippet_translator = GoogleTranslator(source='auto', target=response_language)
+                    translated_response = snippet_translator.translate(english_response)
+                except Exception as translate_error:
+                    logger.error(f"Document response translation failed: {translate_error}")
+                    translated_response = english_response
+                    translation_failed = True
+                    response_language = 'en'
+                    snippet_translator = None
+
+            translated_snippets = []
+            for snippet in result.get('supporting_snippets', []):
+                snippet_text = snippet.get('snippet', '')
+                display_text = snippet_text
+
+                if response_language == 'mr' and snippet_text:
+                    try:
+                        display_text = translate_to_marathi(snippet_text)
+                    except Exception as snippet_error:
+                        logger.error(f"Document snippet Marathi translation failed: {snippet_error}")
+                        display_text = snippet_text
+                elif response_language != 'en' and snippet_translator and snippet_text:
+                    try:
+                        display_text = snippet_translator.translate(snippet_text)
+                    except Exception as snippet_error:
+                        logger.error(f"Document snippet translation failed: {snippet_error}")
+                        display_text = snippet_text
+
+                snippet_payload = {
+                    'source': snippet.get('source', 'Legal Document'),
+                    'snippet': display_text
+                }
+
+                if response_language != 'en' and display_text != snippet_text:
+                    snippet_payload['original_snippet'] = snippet_text
+
+                translated_snippets.append(snippet_payload)
+
+            translated_input = trimmed_text
+            if response_language == 'mr':
+                try:
+                    translated_input = translate_to_marathi(trimmed_text)
+                except Exception as translate_error:
+                    logger.error(f"Document input Marathi translation failed: {translate_error}")
+                    translated_input = trimmed_text
+            elif response_language != 'en':
+                translator_for_input = snippet_translator
+                if translator_for_input is None:
+                    try:
+                        translator_for_input = GoogleTranslator(source='auto', target=response_language)
+                    except Exception as translate_error:
+                        logger.error(f"Document input translation setup failed: {translate_error}")
+                        translator_for_input = None
+
+                if translator_for_input:
+                    try:
+                        translated_input = translator_for_input.translate(trimmed_text)
+                    except Exception as translate_error:
+                        logger.error(f"Document input translation failed: {translate_error}")
+                        translated_input = trimmed_text
+
+            response_payload = {
+                "status": "success",
+                "filename": filename,
+                "language": response_language,
+                "detected_language": detected_language,
+                "response": translated_response,
+                "original_response": english_response,
+                "translated_input": translated_input,
+                "original_input": trimmed_text,
+                "supporting_snippets": translated_snippets,
+                "source_count": result.get('source_count', 0),
+                "document_preview": trimmed_text[:600],
+                "document_length": len(trimmed_text),
+                "timestamp": datetime.now().isoformat()
+            }
+
+            if translation_failed:
+                response_payload['translation_error'] = True
+
+            if processed_text != trimmed_text:
+                response_payload['processed_query'] = processed_text
+
+            return jsonify(response_payload)
+
+        except Exception as e:
+            logger.error(f"Error in analyze_document: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "Internal server error"
+            }), 500
 
 # Legacy endpoint
 @app.route('/chat', methods=['POST'])
