@@ -23,8 +23,9 @@ try:
 except ImportError:  # Optional OCR dependency
     pytesseract = None
 
-    marathi_tokenizer = None
-    marathi_model = None
+marathi_tokenizer = None
+marathi_model = None
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
